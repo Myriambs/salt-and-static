@@ -87,7 +87,7 @@ button:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
     <div class="hush"></div>
     <div class="chip focus" id="chip">On the job</div>
     <div class="tape" role="group" aria-label="Music">
-      <button id="song-mile" aria-pressed="false" title="Restless Mile (original)">♪ Restless<span class="long"> Mile</span></button>
+      <button id="song-circle" aria-pressed="false" title="Salt Circle (original)">♪ Salt<span class="long"> Circle</span></button>
       <button id="song-motel" aria-pressed="false" title="Motel Neon (original)">♪ Motel<span class="long"> Neon</span></button>
       <button id="mute" aria-pressed="false">Mute</button>
     </div>
@@ -130,7 +130,7 @@ button:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
       </div>
     </div>
   </section>
-  <p class="note">Jace, Eli, Biscuit the dog and the Nightjar are original characters. "Restless Mile" and "Motel Neon" are original tunes synthesized live in your browser. The 1-minute lengths are there so you can test the whole loop quickly.</p>
+  <p class="note">Jace, Eli, Biscuit the dog and the Nightjar are original characters. "Salt Circle" and "Motel Neon" are original tunes synthesized live in your browser. The 1-minute lengths are there so you can test the whole loop quickly.</p>
 </div>
 
 <script>
@@ -637,7 +637,7 @@ function chime() {
   } catch (e) {}
 }
 
-/* ---------- two original road-rock loops (70s prog anthem + 80s night drive), synthesized live ---------- */
+/* ---------- two original road-rock loops (a haunted focus piece + an 80s night drive), synthesized live ---------- */
 // Each play gets its own bus (with reverb and echo), so stopping can fade it out cleanly.
 const M = { id: null, def: null, bars: [], loopFrom: 0, i: 0, step: 0, t: 0, timer: 0, bus: null, verb: null, echo: null };
 const MUSIC_VOL = .55;
@@ -684,9 +684,9 @@ function bass(t, m, dur, v = 1) {
   gn.gain.setValueAtTime(0, t); gn.gain.linearRampToValueAtTime(.32 * v, t + .006); gn.gain.setValueAtTime(.32 * v, t + dur * .8); gn.gain.exponentialRampToValueAtTime(.001, t + dur);
   o.connect(f).connect(gn).connect(M.bus); o.start(t); o.stop(t + dur + .02);
 }
-function pad(t, notes, dur, v) {
-  const f = actx.createBiquadFilter(), gn = actx.createGain(); f.type = 'lowpass'; f.frequency.value = 1700;
-  gn.gain.setValueAtTime(0, t); gn.gain.linearRampToValueAtTime(v, t + .03); gn.gain.setValueAtTime(v, t + dur * .85); gn.gain.linearRampToValueAtTime(0, t + dur);
+function pad(t, notes, dur, v, warm) {
+  const f = actx.createBiquadFilter(), gn = actx.createGain(); f.type = 'lowpass'; f.frequency.value = warm ? 650 : 1700;
+  gn.gain.setValueAtTime(0, t); gn.gain.linearRampToValueAtTime(v, t + (warm ? dur * .3 : .03)); gn.gain.setValueAtTime(v, t + dur * .85); gn.gain.linearRampToValueAtTime(0, t + dur);
   f.connect(gn).connect(M.bus); gn.connect(M.verb);
   for (const m of notes) for (const det of [-8, 8]) { const o = actx.createOscillator(); o.type = 'sawtooth'; o.frequency.value = mtof(m); o.detune.value = det; o.connect(f); o.start(t); o.stop(t + dur + .02); }
 }
@@ -697,17 +697,35 @@ function pluck(t, m, v = 1) {
   gn.gain.setValueAtTime(.08 * v, t); gn.gain.exponentialRampToValueAtTime(.001, t + .18);
   o.connect(f).connect(gn); gn.connect(M.bus); gn.connect(M.echo); o.start(t); o.stop(t + .2);
 }
-// Drawbar organ: three sine partials per note with a Leslie-style wobble.
-function organ(t, notes, dur, v) {
-  const gn = actx.createGain(), trem = actx.createOscillator(), tg = actx.createGain();
-  trem.frequency.value = 6.2; tg.gain.value = v * .25; trem.connect(tg).connect(gn.gain);
-  gn.gain.setValueAtTime(0, t); gn.gain.linearRampToValueAtTime(v, t + .015); gn.gain.setValueAtTime(v, t + dur * .9); gn.gain.linearRampToValueAtTime(0, t + dur);
-  gn.connect(M.bus); gn.connect(M.verb);
-  for (const m of notes) for (const [k, a] of [[1, 1], [2, .6], [3, .35], [4, .18]]) {
+// Haunted voices: a music box, a far-off whistle, a heartbeat sub and wind in the pines.
+function bell(t, m, v = 1) {
+  const gn = actx.createGain(); gn.connect(M.bus); gn.connect(M.echo); gn.connect(M.verb);
+  gn.gain.setValueAtTime(0, t); gn.gain.linearRampToValueAtTime(.09 * v, t + .004); gn.gain.exponentialRampToValueAtTime(.001, t + 2.2);
+  for (const [k, a] of [[1, 1], [2.76, .25], [5.4, .08]]) {
     const o = actx.createOscillator(), og = actx.createGain(); o.frequency.value = mtof(m) * k; og.gain.value = a;
-    o.connect(og).connect(gn); o.start(t); o.stop(t + dur + .02);
+    o.connect(og).connect(gn); o.start(t); o.stop(t + 2.3);
   }
-  trem.start(t); trem.stop(t + dur + .02);
+}
+function whistle(t, m, dur, v = 1) {
+  const o = actx.createOscillator(), f = actx.createBiquadFilter(), gn = actx.createGain(), lfo = actx.createOscillator(), lg = actx.createGain();
+  o.type = 'triangle'; o.frequency.value = mtof(m); f.type = 'lowpass'; f.frequency.value = 1800;
+  lfo.frequency.value = 4.8; lg.gain.setValueAtTime(0, t); lg.gain.linearRampToValueAtTime(14, t + Math.min(.8, dur));
+  lfo.connect(lg).connect(o.detune);
+  gn.gain.setValueAtTime(0, t); gn.gain.linearRampToValueAtTime(.13 * v, t + .25); gn.gain.setValueAtTime(.13 * v, t + dur * .8); gn.gain.linearRampToValueAtTime(0, t + dur + .3);
+  o.connect(f).connect(gn); gn.connect(M.bus); gn.connect(M.verb); gn.connect(M.echo);
+  for (const x of [o, lfo]) { x.start(t); x.stop(t + dur + .35); }
+}
+function sub(t, m, dur, v = 1) {
+  const o = actx.createOscillator(), gn = actx.createGain(); o.frequency.value = mtof(m);
+  gn.gain.setValueAtTime(0, t); gn.gain.linearRampToValueAtTime(.16 * v, t + .3); gn.gain.setValueAtTime(.16 * v, t + dur * .7); gn.gain.linearRampToValueAtTime(0, t + dur);
+  o.connect(gn).connect(M.bus); o.start(t); o.stop(t + dur + .02);
+}
+function wind(t, dur, v) {
+  const s = actx.createBufferSource(), f = actx.createBiquadFilter(), gn = actx.createGain();
+  s.buffer = noiseBuf; s.loop = true; f.type = 'bandpass'; f.Q.value = 4;
+  f.frequency.setValueAtTime(380, t); f.frequency.linearRampToValueAtTime(820, t + dur * .5); f.frequency.linearRampToValueAtTime(450, t + dur);
+  gn.gain.setValueAtTime(0, t); gn.gain.linearRampToValueAtTime(v, t + dur * .5); gn.gain.linearRampToValueAtTime(0, t + dur);
+  s.connect(f).connect(gn); gn.connect(M.bus); gn.connect(M.verb); s.start(t, Math.random() * .5); s.stop(t + dur + .05);
 }
 // The lead "talks": two vowel formants open on each note, like a talk box.
 function lead(t, m, dur, v = 1) {
@@ -730,23 +748,16 @@ const chordOf = c => { const m = c.match(/^([A-G]#?)(m?)$/); return { pc: PC[m[1
 const noteOf = s => { const m = s.match(/^([A-G]#?)(\d)$/); return 12 * (+m[2] + 1) + PC[m[1]]; };
 const mel = s => s ? s.trim().split(/\s+/).map(x => { const [st, n, l] = x.split(':'); return [+st, noteOf(n), +l]; }) : [];
 // Melodies: "step:note:length" per bar, 16 steps to a bar.
-// Restless Mile: a layered harmony opening, a unison riff, then a two-voice chorus.
-const RM_RIFF = ['0:D5:2 3:D5:1 4:F5:2 6:G5:2 8:A5:3 11:G5:1 12:F5:2 14:E5:2', '0:C5:3 3:D5:1 4:E5:2 6:C5:2 8:A4:6 14:C#5:2', '0:E5:2 2:C#5:2 4:E5:2 6:A5:2 8:G5:2 10:F5:2 12:E5:2 14:C#5:2'];
-const RM_V = ['0:A4:2 2:A4:2 4:D5:4 8:C5:2 10:A4:4', '0:F4:4 4:G4:2 6:A4:8', '0:A#4:2 2:A#4:2 4:D5:4 8:F5:4 12:D5:4', '0:E5:6 6:D5:2 8:C5:4 12:G4:4'];
+// Salt Circle: slow and hushed so it sits under focus work. A minor, with the E major chord for the haunted pull.
+const SC_A = ['0:E5:6 6:D5:2 8:C5:8', '0:C5:4 4:A4:12', '0:D5:4 4:F5:4 8:E5:8', '0:G#4:8 8:B4:8', '0:A5:6 6:G5:2 8:E5:8', '0:F5:4 4:E5:4 8:C5:8', '0:D5:6 6:C5:2 8:A4:8', '0:B4:8 8:G#4:8'];
 const MN_VERSE = ['0:D5:2 2:F#5:2 4:B5:4 10:A5:2 12:F#5:4', '0:G5:6 8:D5:4 12:B4:4', '0:A4:2 2:D5:2 4:F#5:4 10:E5:2 12:D5:4', '0:C#5:6 8:E5:8'];
 const SONGS = {
-  mile: {
-    bpm: 132, form: ['intro', 'riff', 'verse', 'chorus', 'riff'], loopFrom: 1,
+  circle: {
+    bpm: 72, form: ['intro', 'haunt', 'hush', 'haunt'], loopFrom: 1,
     parts: {
-      intro: { chords: 'Dm A# F C', drums: 0, organ: .05, leadV: .65,
-        lead: ['0:A4:4 4:D5:4 8:F5:6 14:E5:2', '0:D5:8 8:F5:4 12:D5:4', '0:C5:4 4:A4:4 8:F4:4 12:A4:4', '0:E5:6 6:G5:2 8:E5:8'],
-        harm: ['0:F4:4 4:A4:4 8:D5:6 14:C5:2', '0:A#4:8 8:D5:4 12:A#4:4', '0:A4:4 4:F4:4 8:C4:4 12:F4:4', '0:C5:6 6:E5:2 8:C5:8'] },
-      riff: { chords: 'Dm C Dm A', drums: 3, organ: .035, chug: true, pad: .5, lead: [RM_RIFF[0], RM_RIFF[1], RM_RIFF[0], RM_RIFF[2]], oct: -12, leadV: .75 },
-      verse: { chords: 'Dm Dm A# C Dm Dm A# A', drums: 2, organ: .04, leadV: .7,
-        lead: [RM_V[0], RM_V[1], RM_V[2], RM_V[3], RM_V[0], '0:F4:4 4:A4:2 6:D5:8', '0:D5:2 2:F5:2 4:A#5:4 8:A5:4 12:F5:4', '0:E5:8 8:C#5:4 12:A4:4'] },
-      chorus: { chords: 'F C Dm A# F C A# A', drums: 3, organ: .045, pad: .8, leadV: .75,
-        lead: ['0:A5:6 6:G5:2 8:F5:4 12:C5:4', '0:G5:6 6:E5:2 8:C5:8', '0:F5:4 4:E5:2 6:D5:2 8:A5:8', '0:A#5:4 4:A5:4 8:F5:8', '0:C6:6 6:A5:2 8:F5:4 12:A5:4', '0:G5:6 6:A5:2 8:G5:4 12:E5:4', '0:F5:4 4:G5:4 8:A#5:8', '0:A5:8 8:C#6:4 12:E6:4'],
-        harm: ['0:F5:6 6:E5:2 8:C5:4 12:A4:4', '0:E5:6 6:C5:2 8:G4:8', '0:D5:4 4:C5:2 6:A4:2 8:F5:8', '0:F5:4 4:F5:4 8:D5:8', '0:A5:6 6:F5:2 8:C5:4 12:F5:4', '0:E5:6 6:F5:2 8:E5:4 12:C5:4', '0:D5:4 4:E5:4 8:F5:8', '0:E5:8 8:A5:4 12:C#6:4'] }
+      intro: { chords: 'Am F Dm E', drums: 0, pad: .7, warm: true, bells: 4, wind: .05 },
+      haunt: { chords: 'Am F Dm E Am F Dm E', drums: 0, pad: .8, warm: true, bells: 4, heart: true, wind: .03, voice: 'whistle', lead: SC_A },
+      hush: { chords: 'F Am Dm E', drums: 0, pad: .6, warm: true, bells: 2, heart: true, wind: .05 }
     }
   },
   motel: {
@@ -764,13 +775,13 @@ function buildSong(def) {
     if (fi === def.loopFrom) loopFrom = bars.length;
     const p = def.parts[name], ch = p.chords.split(' ');
     const next = fi + 1 < def.form.length ? def.form[fi + 1] : def.form[def.loopFrom];
-    ch.forEach((c, bi) => bars.push({ ...p, chord: chordOf(c), notes: mel(p.lead && p.lead[bi]), hnotes: mel(p.harm && p.harm[bi]), first: bi === 0, fill: bi === ch.length - 1 && next === 'chorus' }));
+    ch.forEach((c, bi) => bars.push({ ...p, chord: chordOf(c), notes: mel(p.lead && p.lead[bi]), first: bi === 0, fill: bi === ch.length - 1 && next === 'chorus' }));
   });
   return { bars, loopFrom };
 }
 function playStep(b, s, t, sd) {
   const root = b.chord.pc, third = b.chord.minor ? 3 : 4, D = b.drums;
-  if (!D) { /* no drums or bass: just organ and voices */ }
+  if (!D) { /* drumless parts keep their own soft pulse */ }
   else if (b.fill && s >= 12) tom(t, [196, 165, 147, 110][s - 12]);
   else {
     if (s === 0 || s === 8 || (D >= 2 && s === 10)) kick(t, s === 10 ? .7 : 1);
@@ -782,11 +793,12 @@ function playStep(b, s, t, sd) {
   if (D && s % 2 === 0 && (D > 1 || s % 8 === 0)) bass(t, 36 + root + (D >= 3 && (s === 6 || s === 14) ? 12 : 0), D === 1 ? sd * 7 : sd * 1.8, s % 4 === 0 ? 1 : .8);
   const ch = [48 + root, 55 + root, 60 + root, 60 + root + third].concat(D >= 3 ? [67 + root] : []);
   if (b.chug) { if (s % 2 === 0) pad(t, ch, sd * 1.7, b.pad * (s % 4 === 0 ? .045 : .03)); }
-  else if (s === 0 && b.pad) pad(t, ch, sd * 16, b.pad * .04);
-  if (b.organ && s % 8 === 0) organ(t, [48 + root, 60 + root, 60 + root + third, 67 + root], sd * 8, b.organ);
+  else if (s === 0 && b.pad) pad(t, ch, sd * 16, b.pad * .04, b.warm);
+  if (b.bells && s % b.bells === 0) { const ar = [72 + root, 72 + root + third, 79 + root, 84 + root]; bell(t, ar[[0, 1, 2, 3, 2, 1, 2, 1][(s / b.bells) % 8]], s === 0 ? 1 : .7); }
+  if (b.heart && (s === 0 || s === 3)) { kick(t, s ? .22 : .38); if (!s) sub(t, 33 + root, sd * 16); }
+  if (b.wind && s === 0 && Math.random() < .5) wind(t, sd * 16 * 1.5, b.wind);
   if (b.arp) { const ar = [60 + root, 60 + root + third, 67 + root, 72 + root]; pluck(t, ar[[0, 1, 2, 3, 2, 1, 2, 3][s % 8]], s % 4 === 0 ? 1 : .7); }
-  for (const [st, m, l] of b.notes) if (st === s) { lead(t, m, l * sd, b.leadV || 1); if (b.oct) lead(t, m + b.oct, l * sd, (b.leadV || 1) * .7); }
-  for (const [st, m, l] of b.hnotes) if (st === s) lead(t, m, l * sd, (b.leadV || 1) * .6);
+  for (const [st, m, l] of b.notes) if (st === s) { (b.voice === 'whistle' ? whistle : lead)(t, m, l * sd, b.leadV || 1); }
 }
 function pump() {
   const ahead = document.hidden ? 1.6 : .2, sd = 60 / M.def.bpm / 4;
@@ -931,11 +943,11 @@ document.querySelectorAll('#scenePills .pill').forEach(b => b.style.fontFamily =
 document.querySelectorAll('#scenePills .pill').forEach(b => b.style.fontSize = '15px');
 
 function renderTape() {
-  ['mile', 'motel'].forEach(id => $('song-' + id).setAttribute('aria-pressed', M.id === id));
+  ['circle', 'motel'].forEach(id => $('song-' + id).setAttribute('aria-pressed', M.id === id));
   $('mute').setAttribute('aria-pressed', muted);
   $('mute').textContent = muted ? 'Unmute' : 'Mute';
 }
-['mile', 'motel'].forEach(id => $('song-' + id).onclick = () => { if (M.id === id) stopSong(); else playSong(id); renderTape(); });
+['circle', 'motel'].forEach(id => $('song-' + id).onclick = () => { if (M.id === id) stopSong(); else playSong(id); renderTape(); });
 $('mute').onclick = () => {
   muted = !muted;
   try { localStorage.setItem('salt-static-mute', muted ? '1' : '0'); } catch (e) {}
