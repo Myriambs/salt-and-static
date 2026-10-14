@@ -83,7 +83,7 @@ button:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
   </header>
 
   <section class="stage" aria-label="Animated scene">
-    <canvas id="stage" width="320" height="180"></canvas>
+    <canvas id="stage" width="640" height="360"></canvas>
     <div class="hush"></div>
     <div class="chip focus" id="chip">On the job</div>
     <div class="tape" role="group" aria-label="Music">
@@ -137,8 +137,10 @@ button:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
 (() => {
 const W = 320, H = 180;
 const cv = document.getElementById('stage');
-const g = cv.getContext('2d');
-g.imageSmoothingEnabled = false;
+// The scene is laid out on a 320x180 grid drawn at 2x; characters use the extra resolution for finer detail.
+const main = cv.getContext('2d');
+main.setTransform(2, 0, 0, 2, 0, 0); main.imageSmoothingEnabled = false;
+let g = main;
 
 /* ---------- pixel helpers ---------- */
 function r(x, y, w, h, c) { g.fillStyle = c; g.fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h)); }
@@ -187,40 +189,86 @@ function drawParts() {
 /* ---------- characters (original) ---------- */
 const JACE = { hair: '#3a281b', skin: '#e0ab84', jacket: '#5a3720', jacketHi: '#7d4f2d', shirt: '#1d1e24', jeans: '#2b3552', boots: '#1a120e', style: 'short', blink: 0 };
 const ELI = { hair: '#5e3c22', skin: '#e4b18b', jacket: 'plaid', shirt: '#8d939d', jeans: '#303b57', boots: '#2b1c13', style: 'long', blink: 1.7 };
-function torsoPx(p, i, j) {
-  if (p.jacket !== 'plaid') return i === 0 || i === 10 ? p.jacketHi : p.jacket;
-  if (i % 4 === 1) return '#2c4228';
-  if (j % 4 === 2) return '#7a9a5e';
-  return '#486a40';
+JACE.hairHi = '#5a4030'; JACE.skinD = '#c08868'; JACE.stubble = true;
+ELI.hairHi = '#7e5634'; ELI.skinD = '#c4916d';
+// Characters are drawn at full canvas resolution on a scratch sprite, then stamped with a dark outline.
+const SPR = 100, spr = document.createElement('canvas'), sil = document.createElement('canvas');
+spr.width = spr.height = sil.width = sil.height = SPR;
+const sg = spr.getContext('2d'), lg = sil.getContext('2d');
+const HEAD = [4, 5, 6, 6, 6, 6, 6, 6, 6, 6, 6, 5, 5, 4, 3];
+function torsoC(p, i, j, hw) {
+  if (p.jacket === 'plaid') {
+    const c = (i + 40) % 6 === 0 ? '#2c4228' : j % 6 === 3 ? '#7a9a5e' : '#486a40';
+    return i <= -hw + 1 ? (c === '#486a40' ? '#56794b' : c) : i >= hw - 1 ? '#34512f' : c;
+  }
+  return i <= -hw + 1 ? p.jacketHi : i >= hw - 1 ? '#40271a' : p.jacket;
+}
+function arm(p, sx, sy, hx, hy, side) {
+  const ex = (sx + hx) / 2 + side * 3, ey = (sy + hy) / 2 + 3;
+  const c = p.jacket === 'plaid' ? '#486a40' : p.jacket, cd = p.jacket === 'plaid' ? '#34512f' : '#40271a';
+  ln(sx - 2, sy - 2, ex - 2, ey - 2, cd, 5); ln(ex - 2, ey - 2, hx - 2, hy - 2, cd, 5);
+  ln(sx - 2, sy - 2, ex - 2, ey - 2, c, 4); ln(ex - 2, ey - 2, hx - 2, hy - 2, c, 4);
+  circ(hx, hy + 1, 2, p.skin); r(hx - 2, hy + 2, 5, 1, p.skinD);
 }
 function person(p, x, y, t, o = {}) {
   x = Math.round(x); y = Math.round(y);
-  if (o.sit) {
-    r(x - 1, y + 21, 9, 4, p.jeans); r(x - 1, y + 25, 4, 10, p.jeans); r(x + 4, y + 25, 4, 10, p.jeans);
-    r(x - 2, y + 35, 5, 2, p.boots); r(x + 4, y + 35, 5, 2, p.boots);
-  } else if (!o.noLegs) {
-    r(x - 1, y + 21, 4, 14, p.jeans); r(x + 4, y + 21, 4, 14, p.jeans);
-    r(x - 2, y + 35, 5, 2, p.boots); r(x + 4, y + 35, 5, 2, p.boots);
+  const bx = x - 20, by = y - 6, N = (wx, wy) => [(wx - bx) * 2, (wy - by) * 2];
+  sg.clearRect(0, 0, SPR, SPR); g = sg;
+  const cx = 47, Y = 12, D = '#1a1214';
+  // legs and boots
+  const leg = (top, len) => {
+    for (const [l, hi] of [[cx - 9, true], [cx + 1, false]]) {
+      r(l, top, 8, len, p.jeans); r(hi ? l : l + 6, top, 2, len, hi ? '#3d4a6e' : '#1f2840');
+      r(l + 3, top + 2, 1, len - 4, '#25304a');
+      r(l - 1, top + len, 10, 4, p.boots); r(l - 1, top + len + 3, 10, 1, '#0a0705'); r(hi ? l : l + 6, top + len, 2, 1, '#4a3428');
+    }
+  };
+  if (o.sit) { r(cx - 9, Y + 45, 18, 7, p.jeans); r(cx - 9, Y + 45, 18, 1, '#3d4a6e'); r(cx - 1, Y + 47, 2, 5, '#1f2840'); leg(Y + 52, 20); }
+  else if (!o.noLegs && !o.bust) leg(Y + 45, 27);
+  // torso: jacket or flannel over a tee, belt
+  for (let j = 0; j < 27; j++) {
+    const hw = j === 0 ? 7 : j === 1 ? 9 : j < 14 ? 10 : 9;
+    for (let i = -hw; i < hw; i++) r(cx + i, Y + 17 + j, 1, 1, torsoC(p, i, j, hw));
   }
-  for (let i = 0; i < 11; i++) for (let j = 0; j < 13; j++) px(x - 2 + i, y + 8 + j, torsoPx(p, i, j));
-  r(x + 2, y + 8, 3, 13, p.shirt);
-  r(x - 1, y + 20, 9, 1, '#141418');
-  const arm = p.jacket === 'plaid' ? '#486a40' : p.jacket;
-  const hL = o.handL || [x - 4, y + 20], hR = o.handR || [x + 9, y + 20];
-  ln(x - 3, y + 9, hL[0], hL[1], arm, 2); ln(x + 9, y + 9, hR[0], hR[1], arm, 2);
-  r(hL[0], hL[1], 2, 2, p.skin); r(hR[0], hR[1], 2, 2, p.skin);
-  r(x + 2, y + 7, 3, 1, p.skin);
-  r(x, y + 1, 7, 6, p.skin);
-  if (p.style === 'short') { r(x, y, 7, 2, p.hair); r(x + 1, y - 1, 4, 1, p.hair); r(x, y + 2, 1, 2, p.hair); r(x + 6, y + 2, 1, 1, p.hair); }
-  else { r(x, y - 1, 7, 1, p.hair); r(x - 1, y, 9, 2, p.hair); r(x - 1, y + 2, 2, 6, p.hair); r(x + 6, y + 2, 2, 6, p.hair); }
-  const dark = '#1a1214';
-  if (o.sleep) { r(x + 1, y + 4, 2, 1, dark); r(x + 4, y + 4, 2, 1, dark); }
-  else if ((t + p.blink) % 4.2 > .14) {
-    const lo = o.look || 0, ey = y + 4 + (o.down ? 1 : 0);
-    px(x + 1 + lo, ey, dark); px(x + 4 + lo, ey, dark);
+  r(cx - 3, Y + 17, 6, 26, p.shirt); r(cx + 1, Y + 18, 2, 25, '#00000022');
+  ln(cx - 3, Y + 17, cx - 1, Y + 27, p.jacket === 'plaid' ? '#2c4228' : p.jacketHi); ln(cx + 2, Y + 17, cx, Y + 27, p.jacket === 'plaid' ? '#2c4228' : '#40271a');
+  r(cx - 9, Y + 43, 18, 2, '#141418'); r(cx - 1, Y + 43, 2, 2, '#b5a36a');
+  // arms (hands come in world coordinates)
+  const [lx, ly] = N(...(o.handL || [x - 4, y + 20])), [rx, ry] = N(...(o.handR || [x + 9, y + 20]));
+  if (!o.bust) { arm(p, cx - 9, Y + 20, lx + 1, ly + 1, -1); arm(p, cx + 9, Y + 20, rx + 1, ry + 1, 1); }
+  // neck, head, ears
+  r(cx - 2, Y + 14, 5, 4, p.skinD);
+  HEAD.forEach((hw, j) => { r(cx - hw, Y + j, hw * 2, 1, p.skin); r(cx + hw - 2, Y + j, 2, 1, p.skinD); });
+  r(cx - 7, Y + 6, 1, 4, p.skin); r(cx + 6, Y + 6, 1, 4, p.skinD);
+  r(cx - 4, Y + 13, 8, 1, p.skinD);
+  if (p.stubble) for (let j = 11; j < 14; j++) r(cx - HEAD[j] + 1, Y + j, HEAD[j] * 2 - 3, 1, '#cf9a78');
+  // hair
+  if (p.style === 'short') {
+    r(cx - 6, Y - 1, 12, 1, p.hair); r(cx - 4, Y - 2, 2, 1, p.hair); r(cx - 1, Y - 2, 3, 1, p.hair); r(cx + 3, Y - 2, 1, 1, p.hair);
+    r(cx - 7, Y, 14, 3, p.hair); r(cx - 7, Y + 3, 2, 3, p.hair); r(cx + 5, Y + 3, 2, 3, p.hair); r(cx - 5, Y + 3, 4, 1, p.hair);
+    r(cx - 4, Y - 1, 4, 1, p.hairHi); r(cx - 5, Y, 3, 1, p.hairHi);
+  } else {
+    r(cx - 6, Y - 2, 12, 1, p.hair); r(cx - 7, Y - 1, 14, 3, p.hair);
+    r(cx - 8, Y + 1, 3, 20, p.hair); r(cx + 5, Y + 1, 3, 20, p.hair); r(cx - 8, Y + 19, 2, 2, p.hair);
+    r(cx - 6, Y + 2, 6, 2, p.hair); r(cx - 6, Y + 4, 3, 1, p.hair); r(cx + 2, Y + 2, 3, 1, p.hair);
+    r(cx - 7, Y + 3, 1, 16, p.hairHi); r(cx - 3, Y - 1, 3, 1, p.hairHi); r(cx + 6, Y + 4, 1, 14, '#3e2816'); r(cx - 1, Y - 2, 1, 2, '#3e2816');
   }
-  if (o.mouth) px(x + 3, y + 6, '#6b2f2f');
-  if (o.glow) { g.globalAlpha = o.glow; r(x - 1, y, 9, 8, o.glowC || '#8fb6ff'); g.globalAlpha = 1; }
+  // face
+  const lo = o.look || 0, ey = Y + 7 + (o.down ? 1 : 0);
+  r(cx - 4, Y + 5, 3, 1, p.hair); r(cx + 2, Y + 5, 3, 1, p.hair);
+  if (o.sleep || (t + p.blink) % 4.2 <= .14) { r(cx - 4, ey + 1, 3, 1, D); r(cx + 2, ey + 1, 3, 1, D); }
+  else {
+    r(cx - 4 + lo, ey, 2, 2, D); r(cx + 2 + lo, ey, 2, 2, D);
+    if (!o.down) { r(cx - 4 + lo, ey, 1, 1, '#ffffff55'); r(cx + 2 + lo, ey, 1, 1, '#ffffff55'); }
+  }
+  r(cx, Y + 9, 1, 2, p.skinD); r(cx - 1, Y + 10, 1, 1, p.skinD);
+  if (o.mouth) r(cx - 2, Y + 11, 4, 2, '#4a1f1f'); else r(cx - 2, Y + 12, 4, 1, '#a0614f');
+  if (o.glow) { sg.globalCompositeOperation = 'source-atop'; sg.globalAlpha = o.glow; r(cx - 12, Y - 3, 24, 34, o.glowC || '#8fb6ff'); sg.globalAlpha = 1; sg.globalCompositeOperation = 'source-over'; }
+  g = main;
+  // outline: a dark silhouette stamped one pixel around the sprite
+  lg.clearRect(0, 0, SPR, SPR); lg.drawImage(spr, 0, 0); lg.globalCompositeOperation = 'source-in'; lg.fillStyle = '#05060a'; lg.fillRect(0, 0, SPR, SPR); lg.globalCompositeOperation = 'source-over';
+  if (!o.bust) for (const [dx, dy] of [[-.5, 0], [.5, 0], [0, -.5], [0, .5]]) g.drawImage(sil, bx + dx, by + dy, SPR / 2, SPR / 2);
+  g.drawImage(spr, bx, by, SPR / 2, SPR / 2);
 }
 
 /* ---------- the Nightjar: a black '60s sedan ---------- */
@@ -512,11 +560,8 @@ const scenes = {
         g.save(); g.beginPath(); g.rect(cx + 30, 108, 56, 9); g.clip();
         r(cx + 62, 109, 3, 8, '#3a1f1a'); r(cx + 40, 110, 3, 7, '#3a1f1a');
         const jx = cx + 67, jy = 111 + (Math.sin(t * .8) > 0 ? 1 : 0);
-        r(jx, jy, 6, 6, JACE.skin); r(jx, jy - 1, 6, 2, JACE.hair); r(jx + 1, jy + 3, 2, 1, '#1a1214'); r(jx + 4, jy + 3, 1, 1, '#1a1214');
-        r(jx - 1, jy + 6, 9, 3, JACE.jacket);
-        const ex = cx + 45, ey = 113;
-        r(ex, ey, 6, 5, ELI.skin); r(ex - 1, ey - 1, 8, 2, ELI.hair); r(ex - 1, ey + 1, 2, 4, ELI.hair); r(ex + 1, ey + 3, 2, 1, '#1a1214'); r(ex + 4, ey + 3, 2, 1, '#1a1214');
-        r(ex - 2, ey + 5, 12, 3, '#486a40');
+        person(JACE, jx, jy - 1, t, { bust: true, sleep: true });
+        person(ELI, cx + 45, 112, t, { bust: true, sleep: true });
         g.globalAlpha = .08; r(cx + 30, 108, 56, 9, '#9fb4e0'); g.globalAlpha = 1;
         g.restore();
       }
@@ -555,15 +600,10 @@ const scenes = {
       inside() {
         g.save(); g.beginPath(); g.rect(cx + 30, y - 32, 56, 9); g.clip();
         r(cx + 62, y - 31, 3, 9, '#3a1f1a'); r(cx + 40, y - 30, 3, 8, '#3a1f1a');
-        const jx = cx + 67, jy = y - 30, lo = glance ? 1 : 0;
-        r(jx, jy, 6, 6, JACE.skin); r(jx, jy - 1, 6, 2, JACE.hair); r(jx, jy + 1, 1, 2, JACE.hair);
-        if ((t + .5) % 4.2 > .14) { px(jx + 2 + lo, jy + 3, '#1a1214'); px(jx + 4 + lo, jy + 3, '#1a1214'); }
-        r(jx - 1, jy + 6, 9, 3, JACE.jacket);
-        const ex = cx + 45, ey = y - 29;
-        r(ex, ey, 6, 6, ELI.skin); r(ex - 1, ey - 1, 8, 2, ELI.hair); r(ex - 1, ey + 1, 2, 5, ELI.hair);
-        px(ex + 2 + lo, ey + 3 + (glance ? 0 : 1), '#1a1214'); px(ex + 4 + lo, ey + 3 + (glance ? 0 : 1), '#1a1214');
-        r(ex - 2, ey + 6, 12, 3, '#486a40');
-        if (!glance) { r(ex + 2, ey + 7, 4, 2, '#cfe0ff'); g.globalAlpha = .2; r(ex, ey + 1, 6, 5, '#8fb6ff'); g.globalAlpha = 1; }
+        const ex = cx + 45, ey = y - 31;
+        person(JACE, cx + 67, y - 31, t, { bust: true, look: glance ? 1 : 0 });
+        person(ELI, ex, ey, t, { bust: true, look: glance ? 1 : 0, down: !glance, glow: glance ? 0 : .22 });
+        if (!glance) r(ex + 2, ey + 7, 4, 2, '#cfe0ff');
         g.globalAlpha = .07; r(cx + 30, y - 32, 56, 9, '#9fb4e0'); g.globalAlpha = 1;
         g.restore();
       }
