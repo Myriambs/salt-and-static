@@ -2,7 +2,7 @@
 
 A pixel-art focus timer for hunters on the night shift. Work alongside Jace (under the hood of the Nightjar) or Eli (laptop, lore board, a twitchy EMF reader and Biscuit the dog), then take a break: a burger run, a nap in the car, or a rainy night drive. Pick one, or let Surprise choose.
 
-- Two original 80s road-rock tunes, synthesized live in the browser: **Highway Static** and **Motel Neon**, plus a mute button (top right of the scene).
+- Two original 80s road-rock tunes, synthesized live in the browser: **Restless Mile** (70s prog-rock anthem) and **Motel Neon**, plus a mute button (top right of the scene).
 - In the last 10 seconds of a focus session, your partner turns around and tells you it's almost over.
 
 **Play:** https://myriambs.github.io/salt-and-static/
