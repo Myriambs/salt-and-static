@@ -865,14 +865,19 @@ function burst(t, dur, type, freq, vol, q) {
   s.connect(f).connect(gn).connect(A.bus); s.start(t, Math.random() * .8); s.stop(t + dur + .02);
 }
 function hold(src, ...chain) { let n = src; for (const c of chain) n = n.connect(c); n.connect(A.bus); src.start(); A.nodes.push(src); return src; }
-function clank(t, v) {
-  const gn = actx.createGain(); gn.connect(A.bus);
-  gn.gain.setValueAtTime(.12 * v, t); gn.gain.exponentialRampToValueAtTime(.001, t + .5);
-  const base = 700 + Math.random() * 500;
-  for (const k of [1, 1.47, 2.09, 2.83]) { const o = actx.createOscillator(); o.frequency.value = base * k; o.connect(gn); o.start(t); o.stop(t + .52); }
-  burst(t, .03, 'highpass', 3000, .25 * v);
+// A chain being pulled: many tiny, light link clinks, no heavy hit.
+function chain(t) {
+  const n = 14 + Math.floor(Math.random() * 12), len = .5 + Math.random() * .5;
+  for (let i = 0; i < n; i++) {
+    const at = t + Math.pow(i / n, .8) * len, v = .5 + Math.random() * .5;
+    burst(at, .012, 'bandpass', 4500 + Math.random() * 2500, .12 * v, 4);
+    const o = actx.createOscillator(), gn = actx.createGain(); o.frequency.value = 3200 + Math.random() * 2600;
+    gn.gain.setValueAtTime(.012 * v, at); gn.gain.exponentialRampToValueAtTime(.001, at + .05);
+    o.connect(gn).connect(A.bus); o.start(at); o.stop(at + .06);
+  }
 }
-function ratchet(t) { const n = 6 + Math.floor(Math.random() * 6); for (let i = 0; i < n; i++) burst(t + i * .045, .018, 'bandpass', 3800, .35, 6); }
+// A wrench turning a bolt: quick ratchet clicks, or a slow, soft socket turn.
+function ratchet(t, slow) { const n = 6 + Math.floor(Math.random() * 6), gap = slow ? .13 : .045; for (let i = 0; i < n; i++) burst(t + i * gap, .016, 'bandpass', slow ? 2600 : 3800, slow ? .2 : .28, 6); }
 function thunder() {
   if (!A.bus || A.id !== 'rain') return;
   const t = actx.currentTime + .6 + Math.random() * .6;
@@ -904,7 +909,7 @@ function setAmb(id) {
   if (id === 'garage') {
     A.timer = setInterval(() => {
       const t = actx.currentTime + .05, r = Math.random();
-      if (r < .1) ratchet(t); else if (r < .17) clank(t, .6 + Math.random() * .4);
+      if (r < .08) ratchet(t); else if (r < .13) ratchet(t, true); else if (r < .18) chain(t);
     }, 400);
   }
 }
