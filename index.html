@@ -130,7 +130,7 @@ button:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
       </div>
     </div>
   </section>
-  <p class="note">Jace, Eli, Biscuit the dog and the Nightjar are original characters. "Salt Circle" and "Motel Neon" are original tunes synthesized live in your browser. The 1-minute lengths are there so you can test the whole loop quickly.</p>
+  <p class="note">Jace, Eli, Biscuit the dog and the Nightjar are original characters. "Salt Circle", "Motel Neon" and the 8-bit break tunes are original, synthesized live in your browser. Breaks bring their own sound: rain on the drive, arcade tunes for the nap and the burger run. The 1-minute lengths are there so you can test the whole loop quickly.</p>
 </div>
 
 <script>
@@ -358,6 +358,7 @@ function emfBox(x, y, t, hot) {
 }
 
 /* ---------- scenes ---------- */
+let lastLt = 0;
 const scenes = {
   jace(t, dt) {
     exterior(t);
@@ -529,6 +530,7 @@ const scenes = {
 
   drive(t, dt) {
     const lt = t % 13, flash = lt < .1 || (lt > .2 && lt < .28);
+    if (lt < lastLt) thunder(); lastLt = lt;
     ['#05070f', '#070a14', '#0a0d1a', '#0d1120', '#101527', '#13192e', '#161c33'].forEach((c, i) => r(0, i * 20, W, 20, flash ? '#3a4466' : c));
     for (let i = 0; i < 7; i++) { const x = ((i * 61 - t * 4) % (W + 80) + W + 80) % (W + 80) - 40, y = 8 + (i % 3) * 13; r(x, y + 3, 64, 8, '#1a2034'); r(x + 12, y, 36, 5, '#1a2034'); }
     scrollTrees(farTrees, '#0d1326', 116, t * 12);
@@ -760,6 +762,22 @@ const SONGS = {
       hush: { chords: 'F Am Dm E', drums: 0, pad: .6, warm: true, bells: 2, heart: true, wind: .05 }
     }
   },
+  nap: {
+    bpm: 84, form: ['intro', 'main'], loopFrom: 1, // Backseat Pixels: sleepy 8-bit for the nap
+    parts: {
+      intro: { chip: true, chords: 'F G Em Am', drums: 0, arp: true },
+      main: { chip: true, chords: 'F G Em Am F G Em Am', drums: 1, arp: true,
+        lead: ['0:A5:4 4:C6:4 8:A5:2 10:G5:6', '0:G5:4 4:B5:4 8:D6:8', '0:E5:4 4:G5:2 6:B5:6 12:A5:4', '0:A5:8 8:E5:8', '0:F5:2 2:A5:2 4:C6:4 8:E6:4 12:C6:4', '0:D6:6 6:B5:2 8:G5:8', '0:B5:4 4:G5:4 8:E5:4 12:G5:4', '0:A5:12'] }
+    }
+  },
+  diner: {
+    bpm: 100, form: ['intro', 'main'], loopFrom: 1, // Fry Cook 8-Bit: a bouncy diner jingle
+    parts: {
+      intro: { chip: true, chords: 'G Em C D', drums: 1, arp: true },
+      main: { chip: true, chords: 'G Em C D G Em C D', drums: 2, arp: true,
+        lead: ['0:B5:2 2:D6:2 4:B5:2 6:G5:2 8:A5:4 12:B5:4', '0:G5:2 2:B5:2 4:G5:2 6:E5:2 8:F#5:8', '0:E5:2 2:G5:2 4:C6:4 8:B5:2 10:A5:2 12:G5:4', '0:F#5:4 4:A5:4 8:D6:6 14:C6:2', '0:B5:4 4:A5:2 6:G5:2 8:D6:8', '0:E6:4 4:D6:2 6:B5:2 8:G5:8', '0:C6:2 2:B5:2 4:A5:2 6:G5:2 8:E5:4 12:G5:4', '0:A5:4 4:F#5:4 8:D5:8'] }
+    }
+  },
   motel: {
     bpm: 112, form: ['intro', 'verse', 'chorus', 'verse', 'chorus'], loopFrom: 1,
     parts: {
@@ -779,7 +797,24 @@ function buildSong(def) {
   });
   return { bars, loopFrom };
 }
+function chip(t, type, m, dur, v, wet) {
+  const o = actx.createOscillator(), f = actx.createBiquadFilter(), gn = actx.createGain();
+  o.type = type; o.frequency.value = mtof(m); f.type = 'lowpass'; f.frequency.value = 3200;
+  gn.gain.setValueAtTime(0, t); gn.gain.linearRampToValueAtTime(v, t + .005); gn.gain.setValueAtTime(v, t + dur * .7); gn.gain.linearRampToValueAtTime(0, t + dur);
+  o.connect(f).connect(gn).connect(M.bus); if (wet) gn.connect(M.echo);
+  o.start(t); o.stop(t + dur + .02);
+}
+function chipStep(b, s, t, sd) {
+  const root = b.chord.pc, third = b.chord.minor ? 3 : 4, D = b.drums;
+  if (D && (s === 0 || s === 8 || (D >= 2 && s === 10))) kick(t, .4);
+  if (D >= 2 && (s === 4 || s === 12)) noise(t, .09, 'bandpass', 2500, .12, M.bus);
+  if (D && s % 2 === 0) noise(t, .03, 'highpass', 8000, .05, M.bus);
+  if (s % 4 === 0) chip(t, 'triangle', 48 + root + (s === 8 ? 7 : 0), sd * 3.5, .2);
+  if (b.arp && s % 2 === 0) chip(t, 'square', [60 + root, 60 + root + third, 67 + root, 72 + root][(s / 2) % 4], sd * 1.5, .028, true);
+  for (const [st, m, l] of b.notes) if (st === s) chip(t, 'square', m, l * sd * .95, .06, true);
+}
 function playStep(b, s, t, sd) {
+  if (b.chip) return chipStep(b, s, t, sd);
   const root = b.chord.pc, third = b.chord.minor ? 3 : 4, D = b.drums;
   if (!D) { /* drumless parts keep their own soft pulse */ }
   else if (b.fill && s >= 12) tom(t, [196, 165, 147, 110][s - 12]);
@@ -822,7 +857,85 @@ function playSong(id) {
   M.bus.gain.linearRampToValueAtTime(MUSIC_VOL * (warn.on ? .3 : 1), actx.currentTime + .3);
   pump(); M.timer = setInterval(pump, 25);
 }
-function duck(k) { if (M.bus) M.bus.gain.setTargetAtTime(MUSIC_VOL * k, actx.currentTime, .5); }
+function duck(k) {
+  if (M.bus) M.bus.gain.setTargetAtTime(MUSIC_VOL * k, actx.currentTime, .5);
+  if (A.bus) A.bus.gain.setTargetAtTime(AMB_VOL * k, actx.currentTime, .5);
+}
+
+/* ---------- scene sound: Jace's garage and the rain ---------- */
+const A = { id: null, bus: null, nodes: [], timer: 0, engine: null };
+const AMB_VOL = .8;
+let rainBuf = null;
+function burst(t, dur, type, freq, vol, q) {
+  const s = actx.createBufferSource(), f = actx.createBiquadFilter(), gn = actx.createGain();
+  s.buffer = noiseBuf; f.type = type; f.frequency.value = freq; if (q) f.Q.value = q;
+  gn.gain.setValueAtTime(vol, t); gn.gain.exponentialRampToValueAtTime(.001, t + dur);
+  s.connect(f).connect(gn).connect(A.bus); s.start(t, Math.random() * .8); s.stop(t + dur + .02);
+}
+function hold(src, ...chain) { let n = src; for (const c of chain) n = n.connect(c); n.connect(A.bus); src.start(); A.nodes.push(src); return src; }
+function clank(t, v) {
+  const gn = actx.createGain(); gn.connect(A.bus);
+  gn.gain.setValueAtTime(.12 * v, t); gn.gain.exponentialRampToValueAtTime(.001, t + .5);
+  const base = 700 + Math.random() * 500;
+  for (const k of [1, 1.47, 2.09, 2.83]) { const o = actx.createOscillator(); o.frequency.value = base * k; o.connect(gn); o.start(t); o.stop(t + .52); }
+  burst(t, .03, 'highpass', 3000, .25 * v);
+}
+function ratchet(t) { const n = 6 + Math.floor(Math.random() * 6); for (let i = 0; i < n; i++) burst(t + i * .045, .018, 'bandpass', 3800, .35, 6); }
+function rev(t) {
+  const e = A.engine; if (!e) return;
+  e.o.frequency.setValueAtTime(30, t); e.o.frequency.linearRampToValueAtTime(58, t + .5); e.o.frequency.linearRampToValueAtTime(30, t + 1.8);
+  e.f.frequency.setValueAtTime(220, t); e.f.frequency.linearRampToValueAtTime(700, t + .5); e.f.frequency.linearRampToValueAtTime(220, t + 1.8);
+  e.lfo.frequency.setValueAtTime(11, t); e.lfo.frequency.linearRampToValueAtTime(22, t + .5); e.lfo.frequency.linearRampToValueAtTime(11, t + 1.8);
+}
+function thunder() {
+  if (!A.bus || A.id !== 'rain') return;
+  const t = actx.currentTime + .6 + Math.random() * .6;
+  burst(t, .5, 'highpass', 1200, .25);
+  const s = actx.createBufferSource(), f = actx.createBiquadFilter(), gn = actx.createGain();
+  s.buffer = rainBuf; f.type = 'lowpass'; f.frequency.value = 160;
+  gn.gain.setValueAtTime(0, t); gn.gain.linearRampToValueAtTime(1.1, t + .25); gn.gain.exponentialRampToValueAtTime(.001, t + 4.5);
+  s.connect(f).connect(gn).connect(A.bus); s.start(t, Math.random()); s.stop(t + 4.6);
+}
+function setAmb(id) {
+  if (A.id === id) return;
+  const n = actx.currentTime;
+  if (A.bus) {
+    const b = A.bus, nodes = A.nodes; clearInterval(A.timer);
+    b.gain.cancelScheduledValues(n); b.gain.setValueAtTime(b.gain.value, n); b.gain.linearRampToValueAtTime(0, n + 1);
+    setTimeout(() => { nodes.forEach(x => { try { x.stop(); } catch (e) {} }); b.disconnect(); }, 1200);
+  }
+  Object.assign(A, { id, bus: null, nodes: [], timer: 0, engine: null });
+  if (!id) return;
+  A.bus = actx.createGain(); A.bus.connect(master);
+  A.bus.gain.setValueAtTime(0, n); A.bus.gain.linearRampToValueAtTime(AMB_VOL * (warn.on ? .3 : 1), n + 1.5);
+  if (id === 'rain') {
+    if (!rainBuf) { rainBuf = actx.createBuffer(1, actx.sampleRate * 4, actx.sampleRate); const d = rainBuf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1; }
+    const layer = (lo, hi, v) => { const s = actx.createBufferSource(), a = actx.createBiquadFilter(), b = actx.createBiquadFilter(), gn = actx.createGain(); s.buffer = rainBuf; s.loop = true; a.type = 'highpass'; a.frequency.value = lo; b.type = 'lowpass'; b.frequency.value = hi; gn.gain.value = v; hold(s, a, b, gn); };
+    layer(600, 7000, .22); layer(80, 700, .3);
+    // single drops on the roof and the windshield
+    A.timer = setInterval(() => { const t = actx.currentTime; for (let i = 0; i < 3; i++) if (Math.random() < .6) burst(t + Math.random() * .1, .02 + Math.random() * .03, 'bandpass', 1800 + Math.random() * 3500, .06 + Math.random() * .1, 3); }, 100);
+  }
+  if (id === 'garage') {
+    const o = actx.createOscillator(), f = actx.createBiquadFilter(), gn = actx.createGain(), lfo = actx.createOscillator(), lg = actx.createGain();
+    o.type = 'sawtooth'; o.frequency.value = 30; f.type = 'lowpass'; f.frequency.value = 220; gn.gain.value = .1;
+    lfo.type = 'square'; lfo.frequency.value = 11; lg.gain.value = .06; lfo.connect(lg).connect(gn.gain); lfo.start(); A.nodes.push(lfo);
+    hold(o, f, gn); A.engine = { o, f, lfo };
+    A.timer = setInterval(() => {
+      const t = actx.currentTime + .05, r = Math.random();
+      if (r < .1) ratchet(t); else if (r < .17) clank(t, .6 + Math.random() * .4); else if (r < .19) rev(t);
+    }, 400);
+  }
+}
+
+// Each scene decides what plays: Jace's garage keeps your tape going under the tools, breaks bring their own sound.
+let pick = null;
+const SCENE_SONG = { nap: 'nap', diner: 'diner', drive: null };
+function syncAudio() {
+  if (!actx) return;
+  const sc = scene(), want = sc in SCENE_SONG ? SCENE_SONG[sc] : pick;
+  if (want !== M.id) want ? playSong(want) : stopSong();
+  setAmb(sc === 'jace' ? 'garage' : sc === 'drive' ? 'rain' : null);
+}
 
 /* ---------- the last ten seconds: your partner turns around and says it ---------- */
 const WARN_MS = 10e3, LINE = "It's almost the end. Make sure you did well.";
@@ -921,7 +1034,7 @@ function finish() {
 goEl.onclick = () => { ensureAudio(); S.running ? pause() : start(); };
 $('skip').onclick = () => { ensureAudio(); S.remain = 0; S.running = true; finish(); };
 $('reset').onclick = () => { endWarn(); warn.done = false; try { speechSynthesis.cancel(); } catch (e) {} S.running = false; S.phase = 'focus'; S.preview = null; S.remain = total(); setCaption(true); render(); };
-['jace', 'eli'].forEach(b => $('bro-' + b).onclick = () => { S.bro = b; if (S.phase === 'focus') S.preview = null; setCaption(); render(); });
+['jace', 'eli'].forEach(b => $('bro-' + b).onclick = () => { ensureAudio(); S.bro = b; if (S.phase === 'focus') S.preview = null; setCaption(); render(); });
 
 function pills(el, opts, cls, get, set) {
   el.innerHTML = '';
@@ -935,7 +1048,7 @@ function pills(el, opts, cls, get, set) {
 pills($('focusPills'), [[1, '1'], [15, '15'], [25, '25'], [50, '50']], '', () => S.focusMin, v => { S.focusMin = v; if (S.phase === 'focus' && !S.running) { S.remain = total(); warn.done = false; endWarn(); } });
 pills($('breakPills'), [[1, '1'], [5, '5'], [10, '10']], 'brk', () => S.breakMin, v => { S.breakMin = v; if (S.phase === 'break' && !S.running) S.remain = total(); });
 pills($('scenePills'), [['surprise', 'Surprise'], ['diner', 'Burger run'], ['nap', 'Nap in the car'], ['drive', 'Rainy drive']], 'brk', () => S.brkPref, v => {
-  S.brkPref = v;
+  S.brkPref = v; ensureAudio();
   if (!S.running && S.phase === 'focus') { S.preview = v === 'surprise' ? randomBreak() : v; setCaption(); }
   else if (S.phase === 'break') { pickBreak(); setCaption(); }
 });
@@ -943,11 +1056,11 @@ document.querySelectorAll('#scenePills .pill').forEach(b => b.style.fontFamily =
 document.querySelectorAll('#scenePills .pill').forEach(b => b.style.fontSize = '15px');
 
 function renderTape() {
-  ['circle', 'motel'].forEach(id => $('song-' + id).setAttribute('aria-pressed', M.id === id));
+  ['circle', 'motel'].forEach(id => $('song-' + id).setAttribute('aria-pressed', pick === id));
   $('mute').setAttribute('aria-pressed', muted);
   $('mute').textContent = muted ? 'Unmute' : 'Mute';
 }
-['circle', 'motel'].forEach(id => $('song-' + id).onclick = () => { if (M.id === id) stopSong(); else playSong(id); renderTape(); });
+['circle', 'motel'].forEach(id => $('song-' + id).onclick = () => { ensureAudio(); pick = pick === id ? null : id; syncAudio(); renderTape(); });
 $('mute').onclick = () => {
   muted = !muted;
   try { localStorage.setItem('salt-static-mute', muted ? '1' : '0'); } catch (e) {}
@@ -965,14 +1078,14 @@ function tick() {
   if (S.remain <= 0) finish();
   render();
 }
-setInterval(tick, 250);
+setInterval(() => { tick(); syncAudio(); }, 250);
 
 /* ---------- loop ---------- */
 const slow = matchMedia('(prefers-reduced-motion: reduce)').matches ? .3 : 1;
 let last = performance.now(), T = 0;
 function frame(now) {
   const dt = Math.min(.05, (now - last) / 1000) * slow; last = now; T += dt;
-  tick();
+  tick(); syncAudio();
   capTimer += dt; if (capTimer > 9) { capTimer = 0; capIdx++; if (!(S.phase === 'focus' && !S.running && S.remain === total() && capEl.textContent.startsWith('Break'))) setCaption(); }
   const sc = scene(); if (sc !== lastScene) setCaption();
   g.clearRect(0, 0, W, H);
