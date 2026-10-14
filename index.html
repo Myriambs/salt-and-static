@@ -931,7 +931,8 @@ let voice = null;
 function pickVoice() {
   try {
     const vs = speechSynthesis.getVoices().filter(v => /^en/i.test(v.lang));
-    voice = vs.find(v => /\b(male|daniel|david|fred|alex|george|guy|ryan|arthur|james|ralph)\b/i.test(v.name)) || vs[0] || null;
+    // Prefer a deep, natural male voice; robotic novelty voices (Fred, Ralph) sound creepy.
+    voice = vs.find(v => /google uk english male/i.test(v.name)) || vs.find(v => /\b(daniel|arthur|guy|ryan|george|james|david|alex|male)\b/i.test(v.name)) || vs[0] || null;
   } catch (e) {}
 }
 if ('speechSynthesis' in window) { pickVoice(); speechSynthesis.onvoiceschanged = pickVoice; }
@@ -960,9 +961,9 @@ function speakLine() {
   if (muted || !('speechSynthesis' in window)) return;
   try {
     speechSynthesis.cancel();
-    const u = new SpeechSynthesisUtterance("It's almost the end... make sure you did well.");
+    const u = new SpeechSynthesisUtterance("It's almost the end. Make sure you did well.");
     if (voice) u.voice = voice;
-    u.rate = .72; u.pitch = .2; u.volume = 1;
+    u.rate = .95; u.pitch = .85; u.volume = 1;
     u.onstart = () => { warn.talkUntil = performance.now() + 6000; };
     u.onend = () => { warn.talkUntil = 0; };
     speechSynthesis.speak(u);
