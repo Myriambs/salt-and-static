@@ -699,7 +699,7 @@ function pluck(t, m, v = 1) {
   gn.gain.setValueAtTime(.08 * v, t); gn.gain.exponentialRampToValueAtTime(.001, t + .18);
   o.connect(f).connect(gn); gn.connect(M.bus); gn.connect(M.echo); o.start(t); o.stop(t + .2);
 }
-// Haunted voices: a music box, a far-off whistle, a heartbeat sub and wind in the pines.
+// Haunted voices: a music box, a far-off whistle, and a heartbeat sub.
 function bell(t, m, v = 1) {
   const gn = actx.createGain(); gn.connect(M.bus); gn.connect(M.echo); gn.connect(M.verb);
   gn.gain.setValueAtTime(0, t); gn.gain.linearRampToValueAtTime(.09 * v, t + .004); gn.gain.exponentialRampToValueAtTime(.001, t + 2.2);
@@ -721,13 +721,6 @@ function sub(t, m, dur, v = 1) {
   const o = actx.createOscillator(), gn = actx.createGain(); o.frequency.value = mtof(m);
   gn.gain.setValueAtTime(0, t); gn.gain.linearRampToValueAtTime(.16 * v, t + .3); gn.gain.setValueAtTime(.16 * v, t + dur * .7); gn.gain.linearRampToValueAtTime(0, t + dur);
   o.connect(gn).connect(M.bus); o.start(t); o.stop(t + dur + .02);
-}
-function wind(t, dur, v) {
-  const s = actx.createBufferSource(), f = actx.createBiquadFilter(), gn = actx.createGain();
-  s.buffer = noiseBuf; s.loop = true; f.type = 'bandpass'; f.Q.value = 4;
-  f.frequency.setValueAtTime(380, t); f.frequency.linearRampToValueAtTime(820, t + dur * .5); f.frequency.linearRampToValueAtTime(450, t + dur);
-  gn.gain.setValueAtTime(0, t); gn.gain.linearRampToValueAtTime(v, t + dur * .5); gn.gain.linearRampToValueAtTime(0, t + dur);
-  s.connect(f).connect(gn); gn.connect(M.bus); gn.connect(M.verb); s.start(t, Math.random() * .5); s.stop(t + dur + .05);
 }
 // The lead "talks": two vowel formants open on each note, like a talk box.
 function lead(t, m, dur, v = 1) {
@@ -757,9 +750,9 @@ const SONGS = {
   circle: {
     bpm: 72, form: ['intro', 'haunt', 'hush', 'haunt'], loopFrom: 1,
     parts: {
-      intro: { chords: 'Am F Dm E', drums: 0, pad: .7, warm: true, bells: 4, wind: .05 },
-      haunt: { chords: 'Am F Dm E Am F Dm E', drums: 0, pad: .8, warm: true, bells: 4, heart: true, wind: .03, voice: 'whistle', lead: SC_A },
-      hush: { chords: 'F Am Dm E', drums: 0, pad: .6, warm: true, bells: 2, heart: true, wind: .05 }
+      intro: { chords: 'Am F Dm E', drums: 0, pad: .7, warm: true, bells: 4 },
+      haunt: { chords: 'Am F Dm E Am F Dm E', drums: 0, pad: .8, warm: true, bells: 4, heart: true, voice: 'whistle', lead: SC_A },
+      hush: { chords: 'F Am Dm E', drums: 0, pad: .6, warm: true, bells: 2, heart: true }
     }
   },
   nap: {
@@ -831,7 +824,6 @@ function playStep(b, s, t, sd) {
   else if (s === 0 && b.pad) pad(t, ch, sd * 16, b.pad * .04, b.warm);
   if (b.bells && s % b.bells === 0) { const ar = [72 + root, 72 + root + third, 79 + root, 84 + root]; bell(t, ar[[0, 1, 2, 3, 2, 1, 2, 1][(s / b.bells) % 8]], s === 0 ? 1 : .7); }
   if (b.heart && (s === 0 || s === 3)) { kick(t, s ? .22 : .38); if (!s) sub(t, 33 + root, sd * 16); }
-  if (b.wind && s === 0 && Math.random() < .5) wind(t, sd * 16 * 1.5, b.wind);
   if (b.arp) { const ar = [60 + root, 60 + root + third, 67 + root, 72 + root]; pluck(t, ar[[0, 1, 2, 3, 2, 1, 2, 3][s % 8]], s % 4 === 0 ? 1 : .7); }
   for (const [st, m, l] of b.notes) if (st === s) { (b.voice === 'whistle' ? whistle : lead)(t, m, l * sd, b.leadV || 1); }
 }
@@ -863,7 +855,7 @@ function duck(k) {
 }
 
 /* ---------- scene sound: Jace's garage and the rain ---------- */
-const A = { id: null, bus: null, nodes: [], timer: 0, engine: null };
+const A = { id: null, bus: null, nodes: [], timer: 0 };
 const AMB_VOL = .8;
 let rainBuf = null;
 function burst(t, dur, type, freq, vol, q) {
@@ -881,12 +873,6 @@ function clank(t, v) {
   burst(t, .03, 'highpass', 3000, .25 * v);
 }
 function ratchet(t) { const n = 6 + Math.floor(Math.random() * 6); for (let i = 0; i < n; i++) burst(t + i * .045, .018, 'bandpass', 3800, .35, 6); }
-function rev(t) {
-  const e = A.engine; if (!e) return;
-  e.o.frequency.setValueAtTime(30, t); e.o.frequency.linearRampToValueAtTime(58, t + .5); e.o.frequency.linearRampToValueAtTime(30, t + 1.8);
-  e.f.frequency.setValueAtTime(220, t); e.f.frequency.linearRampToValueAtTime(700, t + .5); e.f.frequency.linearRampToValueAtTime(220, t + 1.8);
-  e.lfo.frequency.setValueAtTime(11, t); e.lfo.frequency.linearRampToValueAtTime(22, t + .5); e.lfo.frequency.linearRampToValueAtTime(11, t + 1.8);
-}
 function thunder() {
   if (!A.bus || A.id !== 'rain') return;
   const t = actx.currentTime + .6 + Math.random() * .6;
@@ -904,7 +890,7 @@ function setAmb(id) {
     b.gain.cancelScheduledValues(n); b.gain.setValueAtTime(b.gain.value, n); b.gain.linearRampToValueAtTime(0, n + 1);
     setTimeout(() => { nodes.forEach(x => { try { x.stop(); } catch (e) {} }); b.disconnect(); }, 1200);
   }
-  Object.assign(A, { id, bus: null, nodes: [], timer: 0, engine: null });
+  Object.assign(A, { id, bus: null, nodes: [], timer: 0 });
   if (!id) return;
   A.bus = actx.createGain(); A.bus.connect(master);
   A.bus.gain.setValueAtTime(0, n); A.bus.gain.linearRampToValueAtTime(AMB_VOL * (warn.on ? .3 : 1), n + 1.5);
@@ -916,13 +902,9 @@ function setAmb(id) {
     A.timer = setInterval(() => { const t = actx.currentTime; for (let i = 0; i < 3; i++) if (Math.random() < .6) burst(t + Math.random() * .1, .02 + Math.random() * .03, 'bandpass', 1800 + Math.random() * 3500, .06 + Math.random() * .1, 3); }, 100);
   }
   if (id === 'garage') {
-    const o = actx.createOscillator(), f = actx.createBiquadFilter(), gn = actx.createGain(), lfo = actx.createOscillator(), lg = actx.createGain();
-    o.type = 'sawtooth'; o.frequency.value = 30; f.type = 'lowpass'; f.frequency.value = 220; gn.gain.value = .1;
-    lfo.type = 'square'; lfo.frequency.value = 11; lg.gain.value = .06; lfo.connect(lg).connect(gn.gain); lfo.start(); A.nodes.push(lfo);
-    hold(o, f, gn); A.engine = { o, f, lfo };
     A.timer = setInterval(() => {
       const t = actx.currentTime + .05, r = Math.random();
-      if (r < .1) ratchet(t); else if (r < .17) clank(t, .6 + Math.random() * .4); else if (r < .19) rev(t);
+      if (r < .1) ratchet(t); else if (r < .17) clank(t, .6 + Math.random() * .4);
     }, 400);
   }
 }
